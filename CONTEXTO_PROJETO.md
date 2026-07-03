@@ -136,8 +136,9 @@ projeto 01/
 
 ## 10. Itens pendentes (a definir futuramente)
 
-- [ ] **Configuração do Google Cloud** (Em andamento) — Necessário concluir a criação da Service Account (ou autenticar via gcloud CLI local) e configurar as credenciais.
-- [ ] **Rodar Setup Automático** (Pendente) — Após logar no Google Cloud e GitHub via CLI no terminal, rodar `python setup_automatico.py` para configurar tudo automaticamente.
+- [x] **Configuração do Google Cloud** — Autenticação OAuth 2.0 local configurada com sucesso usando `credentials.json` e `authorized_user.json` (bypasando bloqueios de chaves de Service Account).
+- [x] **Inicialização da Planilha** — Planilha configurada com as abas `OBRAS` (limpa e padronizada) e `REGISTROS_METEOROLOGICOS` via scripts locais (`inicializar_planilha.py` e `limpar_planilha.py`).
+- [ ] **Corrigir erro de parsing na API do INMET** (Pendente) — Investigar o erro `Expecting value: line 1 column 1` ao buscar dados da URL do INMET na execução local.
 - [x] **Critérios de classificação de dia improdutivo** — Definidos thresholds de chuva (1mm/h), vento (40km/h), chuva dirigida (5mm + 25km/h) e períodos (Manhã: 8h-12h, Tarde: 14h-17h/16h).
 - [ ] **Contato com APAC** — enviar e-mail para monitoramento@apac.pe.gov.br solicitando acesso à API (Fase 3)
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
@@ -151,11 +152,11 @@ projeto 01/
 | Fase | Descrição | Status |
 |---|---|---|
 | **Fase 1 (MVP)** | Coleta INMET + registro Google Sheets + agendamento GitHub Actions | ✅ Implementado |
-| **Fase 2** | Critérios de classificação de dia improdutivo (turnos úteis) | ✅ Implementado |
+| **Fase 2** | Critérios de classificação de dia improdutivo (turnos úteis) e Auth Local | ✅ Implementado |
 | **Fase 3** | Integração com APAC | ⏳ Aguardando contato com agência |
 | **Fase 4** | Dashboard Google Looker Studio | ⏳ Planejada |
 | **Fase 5** | Relatório mensal automatizado | ⏳ Planejada |
 
 ---
 
-*Última atualização: 03/07/2026 — atualizado por Antigravity após implementação dos critérios de dia improdutivo v2.1.*
+*Última atualização: 03/07/2026 — atualizado por Antigravity após login via OAuth 2.0 local e inicialização/limpeza da planilha no Google Drive.*
