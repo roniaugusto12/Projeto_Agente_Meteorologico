@@ -14,13 +14,46 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from config import INMET_API_BASE, ESTACAO_PADRAO, TIMEZONE_BRT
+from config import (
+    INMET_API_BASE,
+    ESTACAO_PADRAO,
+    TIMEZONE_BRT,
+    LIMITE_CHUVA_MM,
+    LIMITE_VENTO_MS,
+    LIMITE_RAJADA_MS,
+)
 
 logger = logging.getLogger(__name__)
 
 # Fuso horário BRT
 BRT = ZoneInfo(TIMEZONE_BRT)
 UTC = ZoneInfo("UTC")
+
+
+def classificar_dia(precipitacao: float | None, vento_max: float | None, rajada_max: float | None) -> tuple[str, str]:
+    """
+    Classifica o dia como PRODUTIVO ou IMPRODUTIVO para trabalhos em fachadas
+    com base nas regras técnicas definidas.
+
+    Returns:
+        tuple[str, str]: (Classificação, Motivo/Observação)
+    """
+    motivos = []
+
+    # 1. Verifica Chuva
+    if precipitacao is not None and precipitacao >= LIMITE_CHUVA_MM:
+        motivos.append(f"Chuva de {precipitacao}mm (limite: {LIMITE_CHUVA_MM}mm)")
+
+    # 2. Verifica Ventos
+    if vento_max is not None and vento_max >= LIMITE_VENTO_MS:
+        motivos.append(f"Vento de {vento_max}m/s (limite: {LIMITE_VENTO_MS}m/s)")
+    elif rajada_max is not None and rajada_max >= LIMITE_RAJADA_MS:
+        motivos.append(f"Rajada de {rajada_max}m/s (limite: {LIMITE_RAJADA_MS}m/s)")
+
+    if motivos:
+        return "IMPRODUTIVO", " | ".join(motivos)
+    
+    return "PRODUTIVO", "Condições climáticas favoráveis"
 
 
 def _safe_float(valor) -> float | None:
@@ -124,23 +157,31 @@ def agregar_dados_diarios(registros_horarios: list[dict], data_referencia: str) 
         validos = [v for v in valores if v is not None]
         return round(min(validos), 2) if validos else None
 
+    p_val = soma_validos(chuvas)
+    v_val = max_validos(ven_vel)
+    r_val = max_validos(ven_raj)
+    
+    classificacao, obs = classificar_dia(p_val, v_val, r_val)
+
     resultado = {
         "data":         data_referencia,
-        "precipitacao": soma_validos(chuvas),
-        "vento_max":    max_validos(ven_vel),
-        "rajada_max":   max_validos(ven_raj),
+        "precipitacao": p_val,
+        "vento_max":    v_val,
+        "rajada_max":   r_val,
         "umidade_max":  max_validos(umd_max),
         "temp_max":     max_validos(tem_max),
         "temp_min":     min_validos(tem_min),
         "fonte":        "INMET",
         "total_horas":  len(registros_horarios),
+        "classificacao": classificacao,
+        "observacoes":  obs,
     }
 
     logger.info(
         f"Dados agregados para {data_referencia}: "
         f"Chuva={resultado['precipitacao']}mm | "
         f"Vento={resultado['vento_max']}m/s | "
-        f"Rajada={resultado['rajada_max']}m/s"
+        f"Classificação={resultado['classificacao']}"
     )
     return resultado
 

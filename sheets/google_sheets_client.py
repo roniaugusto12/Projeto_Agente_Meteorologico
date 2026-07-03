@@ -161,8 +161,8 @@ def gravar_registro(dados_meteo: dict, obra: dict) -> bool:
         fmt(dados_meteo.get("temp_max")),
         fmt(dados_meteo.get("temp_min")),
         dados_meteo.get("fonte", "INMET"),
-        "PENDENTE",  # Classificação — definida na Fase 2
-        "",          # Observações
+        dados_meteo.get("classificacao", "PRODUTIVO"),
+        dados_meteo.get("observacoes", ""),
     ]
 
     aba.append_row(nova_linha, value_input_option="USER_ENTERED")

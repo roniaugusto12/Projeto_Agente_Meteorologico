@@ -39,6 +39,14 @@ CAMPOS_INMET = {
     "TEM_MIN": ("Temp. Mín (°C)",     "min"),
 }
 
+# ─── Critérios de Dia Improdutivo (Fase 2) ───────────────────────────────────
+# Limite de chuva diária acumulada (em mm) para inviabilizar fachadas
+LIMITE_CHUVA_MM = 2.0
+
+# Limite de velocidade de vento (m/s) e rajada (m/s) para segurança em altura (NR-35)
+LIMITE_VENTO_MS = 10.0
+LIMITE_RAJADA_MS = 14.0
+
 # ─── Cabeçalho da aba de registros ───────────────────────────────────────────
 CABECALHO_REGISTROS = [
     "Data",
