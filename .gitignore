@@ -1,0 +1,23 @@
+# ─── Arquivos gerados automaticamente ─────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ─── Ambiente virtual Python ───────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ─── Variáveis de ambiente e credenciais (NUNCA commitar!) ─────────────────────
+.env
+*.json
+!.env.example
+
+# ─── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ─── Sistema operacional ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
