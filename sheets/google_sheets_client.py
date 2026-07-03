@@ -36,13 +36,13 @@ SCOPES = [
 
 def _autenticar() -> gspread.Client:
     """
-    Autentica com o Google usando Service Account ou Credenciais Padrão (ADC).
+    Autentica com o Google usando Service Account, OAuth Client ID local ou Credenciais Padrão (ADC).
 
-    O JSON da service account pode ser fornecido de duas formas:
+    O JSON da service account/client ID pode ser fornecido de várias formas:
       1. Variável de ambiente GOOGLE_SERVICE_ACCOUNT_JSON contendo o JSON completo (GitHub Actions)
       2. Caminho para um arquivo .json local (desenvolvimento)
-    
-    Se nenhuma dessas formas estiver disponível, tenta carregar as Application Default Credentials (ADC).
+      3. Arquivo local credentials.json para fluxo OAuth 2.0 (caso as chaves da SA estejam bloqueadas)
+      4. Application Default Credentials (ADC) como último recurso.
     """
     json_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 
@@ -55,14 +55,25 @@ def _autenticar() -> gspread.Client:
     except (json.JSONDecodeError, ValueError):
         pass
 
-    # 2. Tenta carregar do arquivo local se ele existir
+    # 2. Tenta carregar do arquivo local da Service Account se ele existir
     caminho = json_env if json_env else GOOGLE_SERVICE_ACCOUNT_JSON
     if caminho and os.path.exists(caminho):
         creds = Credentials.from_service_account_file(caminho, scopes=SCOPES)
         logger.info(f"Autenticado via arquivo de conta de serviço local: {caminho}")
         return gspread.authorize(creds)
 
-    # 3. Fallback: Application Default Credentials (ADC)
+    # 3. Tenta usar o fluxo OAuth 2.0 se houver um arquivo credentials.json local
+    caminho_oauth = "credentials.json"
+    caminho_token = "authorized_user.json"
+    if os.path.exists(caminho_oauth):
+        logger.info("Autenticando via fluxo OAuth 2.0 Desktop local...")
+        return gspread.oauth(
+            scopes=SCOPES,
+            credentials_filename=caminho_oauth,
+            authorized_user_filename=caminho_token
+        )
+
+    # 4. Fallback: Application Default Credentials (ADC)
     try:
         import google.auth
         creds, project = google.auth.default(scopes=SCOPES)
@@ -72,8 +83,8 @@ def _autenticar() -> gspread.Client:
         logger.warning(f"Falha ao carregar Application Default Credentials (ADC): {e}")
 
     raise FileNotFoundError(
-        f"Arquivo de credenciais não encontrado em '{caminho}' e falha ao carregar ADC. "
-        "Configure a chave JSON ou execute 'gcloud auth application-default login' no terminal."
+        f"Arquivo de credenciais não encontrado em '{caminho}' ou 'credentials.json', e falha ao carregar ADC. "
+        "Adicione as credenciais no projeto para prosseguir."
     )
 
 
