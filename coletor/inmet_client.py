@@ -18,9 +18,34 @@ from config import (
     INMET_API_BASE,
     ESTACAO_PADRAO,
     TIMEZONE_BRT,
-    LIMITE_CHUVA_MM,
-    LIMITE_VENTO_MS,
-    LIMITE_RAJADA_MS,
+    # Períodos
+    HORA_INICIO_MANHA,
+    HORA_FIM_MANHA,
+    HORA_INICIO_TARDE,
+    HORA_FIM_TARDE_NORMAL,
+    HORA_FIM_TARDE_SEXTA,
+    # Thresholds horários
+    CHUVA_HORA_ADVERSA,
+    CHUVA_HORA_ATENCAO,
+    RAJADA_IMPRODUTIVO,
+    RAJADA_ATENCAO,
+    # Thresholds período
+    CHUVA_MANHA_IMPRODUTIVO,
+    CHUVA_MANHA_PARCIAL,
+    CHUVA_MANHA_RESSALVA,
+    CHUVA_TARDE_IMPRODUTIVO,
+    CHUVA_TARDE_PARCIAL,
+    CHUVA_TARDE_RESSALVA,
+    CHUVA_SEXTA_IMPRODUTIVO,
+    CHUVA_SEXTA_PARCIAL,
+    CHUVA_SEXTA_RESSALVA,
+    # Mínimo horas
+    HORAS_IMP_MANHA,
+    HORAS_IMP_TARDE_NORMAL,
+    HORAS_IMP_TARDE_SEXTA,
+    # Chuva dirigida
+    CHUVA_DIRIGIDA_MM,
+    CHUVA_DIRIGIDA_VENTO,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,32 +53,6 @@ logger = logging.getLogger(__name__)
 # Fuso horário BRT
 BRT = ZoneInfo(TIMEZONE_BRT)
 UTC = ZoneInfo("UTC")
-
-
-def classificar_dia(precipitacao: float | None, vento_max: float | None, rajada_max: float | None) -> tuple[str, str]:
-    """
-    Classifica o dia como PRODUTIVO ou IMPRODUTIVO para trabalhos em fachadas
-    com base nas regras técnicas definidas.
-
-    Returns:
-        tuple[str, str]: (Classificação, Motivo/Observação)
-    """
-    motivos = []
-
-    # 1. Verifica Chuva
-    if precipitacao is not None and precipitacao >= LIMITE_CHUVA_MM:
-        motivos.append(f"Chuva de {precipitacao}mm (limite: {LIMITE_CHUVA_MM}mm)")
-
-    # 2. Verifica Ventos
-    if vento_max is not None and vento_max >= LIMITE_VENTO_MS:
-        motivos.append(f"Vento de {vento_max}m/s (limite: {LIMITE_VENTO_MS}m/s)")
-    elif rajada_max is not None and rajada_max >= LIMITE_RAJADA_MS:
-        motivos.append(f"Rajada de {rajada_max}m/s (limite: {LIMITE_RAJADA_MS}m/s)")
-
-    if motivos:
-        return "IMPRODUTIVO", " | ".join(motivos)
-    
-    return "PRODUTIVO", "Condições climáticas favoráveis"
 
 
 def _safe_float(valor) -> float | None:
@@ -64,6 +63,132 @@ def _safe_float(valor) -> float | None:
         return float(valor)
     except (ValueError, TypeError):
         return None
+
+
+def obter_hora_brt(registro: dict) -> int | None:
+    """Extrai a hora e converte de UTC para BRT (UTC-3)."""
+    hr_str = registro.get("HR_MEDIDA")
+    if not hr_str:
+        return None
+    hr_str = hr_str.replace(":", "")  # remove colon if present (e.g. "12:00" -> "1200")
+    try:
+        hr_utc = int(hr_str) // 100  # e.g. 1200 -> 12
+        return hr_utc - 3
+    except (ValueError, TypeError):
+        return None
+
+
+def classificar_dia(registros_horarios: list[dict], data_referencia: str) -> tuple[str, str]:
+    """
+    Classifica o dia de trabalho como produtivo ou improdutivo com base nos critérios v2.1.
+    Retorna (classificação, observações).
+    """
+    if not registros_horarios:
+        return "PENDENTE", "Sem dados horários"
+
+    try:
+        dt = datetime.strptime(data_referencia, "%Y-%m-%d")
+        dia_semana = dt.weekday()  # 0=Seg, 4=Sex, etc.
+    except Exception:
+        dia_semana = 0  # fallback
+
+    dias_nomes = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"]
+    dia_nome = dias_nomes[dia_semana] if dia_semana < 7 else "DIA"
+
+    # Define a hora final da tarde com base no dia da semana
+    hora_fim_tarde = HORA_FIM_TARDE_SEXTA if dia_semana == 4 else HORA_FIM_TARDE_NORMAL
+    horas_imp_tarde = HORAS_IMP_TARDE_SEXTA if dia_semana == 4 else HORAS_IMP_TARDE_NORMAL
+    chuva_tarde_imp = CHUVA_SEXTA_IMPRODUTIVO if dia_semana == 4 else CHUVA_TARDE_IMPRODUTIVO
+    chuva_tarde_parcial = CHUVA_SEXTA_PARCIAL if dia_semana == 4 else CHUVA_TARDE_PARCIAL
+    chuva_tarde_ressalva = CHUVA_SEXTA_RESSALVA if dia_semana == 4 else CHUVA_TARDE_RESSALVA
+
+    # Separa os registros por período
+    reg_manha = []
+    reg_tarde = []
+    
+    for r in registros_horarios:
+        hr = obter_hora_brt(r)
+        if hr is None:
+            continue
+        if HORA_INICIO_MANHA <= hr <= HORA_FIM_MANHA:
+            reg_manha.append(r)
+        elif HORA_INICIO_TARDE <= hr <= hora_fim_tarde:
+            reg_tarde.append(r)
+
+    def analisar_periodo(registros, chuva_imp, chuva_parcial, chuva_ressalva, horas_imp_req):
+        if not registros:
+            return "NORMAL", "Sem dados"
+
+        chuva_total = 0.0
+        rajada_max = 0.0
+        horas_adversas = 0
+        horas_atencao = 0
+
+        for r in registros:
+            chuva = _safe_float(r.get("CHUVA")) or 0.0
+            rajada = _safe_float(r.get("VEN_RAJ")) or 0.0
+            
+            chuva_total += chuva
+            if rajada > rajada_max:
+                rajada_max = rajada
+
+            # Classifica a hora
+            if chuva >= CHUVA_HORA_ADVERSA or rajada >= RAJADA_IMPRODUTIVO:
+                horas_adversas += 1
+            elif chuva >= CHUVA_HORA_ATENCAO or rajada >= RAJADA_ATENCAO:
+                horas_atencao += 1
+
+        # Critério combinado (chuva dirigida)
+        if chuva_total >= CHUVA_DIRIGIDA_MM and rajada_max >= CHUVA_DIRIGIDA_VENTO:
+            return "IMPRODUTIVO", f"chuva_dirigida({chuva_total:.1f}mm, {rajada_max:.1f}m/s)"
+
+        if horas_adversas >= horas_imp_req or chuva_total >= chuva_imp:
+            return "IMPRODUTIVO", f"improdutivo({horas_adversas}h_adv, {chuva_total:.1f}mm)"
+
+        if horas_adversas >= 1 or chuva_total >= chuva_parcial:
+            return "PARCIAL", f"parcial({horas_adversas}h_adv, {chuva_total:.1f}mm)"
+
+        if horas_atencao >= 1 or chuva_total >= chuva_ressalva:
+            return "RESSALVA", f"ressalva({horas_atencao}h_aten, {chuva_total:.1f}mm)"
+
+        return "NORMAL", "normal"
+
+    class_manha, desc_manha = analisar_periodo(
+        reg_manha, 
+        CHUVA_MANHA_IMPRODUTIVO, 
+        CHUVA_MANHA_PARCIAL, 
+        CHUVA_MANHA_RESSALVA, 
+        HORAS_IMP_MANHA
+    )
+
+    class_tarde, desc_tarde = analisar_periodo(
+        reg_tarde, 
+        chuva_tarde_imp, 
+        chuva_tarde_parcial, 
+        chuva_tarde_ressalva, 
+        horas_imp_tarde
+    )
+
+    # Combinação para determinar a classificação final do dia
+    if class_manha == "IMPRODUTIVO" and class_tarde == "IMPRODUTIVO":
+        class_dia = "IMPRODUTIVO_TOTAL"
+    elif class_manha == "IMPRODUTIVO" and class_tarde == "PARCIAL":
+        class_dia = "IMPRODUTIVO_TOTAL"
+    elif class_manha == "PARCIAL" and class_tarde == "IMPRODUTIVO":
+        class_dia = "IMPRODUTIVO_TOTAL"
+    elif class_manha == "IMPRODUTIVO" or class_tarde == "IMPRODUTIVO":
+        class_dia = "IMPRODUTIVO_PARCIAL"
+    elif class_manha == "PARCIAL" and class_tarde == "PARCIAL":
+        class_dia = "IMPRODUTIVO_PARCIAL"
+    elif class_manha == "PARCIAL" or class_tarde == "PARCIAL":
+        class_dia = "PRODUTIVO_RESSALVA"
+    elif class_manha == "RESSALVA" or class_tarde == "RESSALVA":
+        class_dia = "PRODUTIVO_RESSALVA"
+    else:
+        class_dia = "PRODUTIVO"
+
+    obs = f"[{dia_nome}] MANHA_{class_manha}({desc_manha}) | TARDE_{class_tarde}({desc_tarde})"
+    return class_dia, obs
 
 
 def buscar_dados_horarios(data: str, codigo_estacao: str = ESTACAO_PADRAO) -> list[dict]:
@@ -157,31 +282,28 @@ def agregar_dados_diarios(registros_horarios: list[dict], data_referencia: str) 
         validos = [v for v in valores if v is not None]
         return round(min(validos), 2) if validos else None
 
-    p_val = soma_validos(chuvas)
-    v_val = max_validos(ven_vel)
-    r_val = max_validos(ven_raj)
-    
-    classificacao, obs = classificar_dia(p_val, v_val, r_val)
+    classificacao, observacoes = classificar_dia(registros_horarios, data_referencia)
 
     resultado = {
-        "data":         data_referencia,
-        "precipitacao": p_val,
-        "vento_max":    v_val,
-        "rajada_max":   r_val,
-        "umidade_max":  max_validos(umd_max),
-        "temp_max":     max_validos(tem_max),
-        "temp_min":     min_validos(tem_min),
-        "fonte":        "INMET",
-        "total_horas":  len(registros_horarios),
+        "data":          data_referencia,
+        "precipitacao":  soma_validos(chuvas),
+        "vento_max":     max_validos(ven_vel),
+        "rajada_max":    max_validos(ven_raj),
+        "umidade_max":   max_validos(umd_max),
+        "temp_max":      max_validos(tem_max),
+        "temp_min":      min_validos(tem_min),
+        "fonte":         "INMET",
+        "total_horas":   len(registros_horarios),
         "classificacao": classificacao,
-        "observacoes":  obs,
+        "observacoes":   observacoes,
     }
 
     logger.info(
         f"Dados agregados para {data_referencia}: "
         f"Chuva={resultado['precipitacao']}mm | "
         f"Vento={resultado['vento_max']}m/s | "
-        f"Classificação={resultado['classificacao']}"
+        f"Rajada={resultado['rajada_max']}m/s | "
+        f"Classe={resultado['classificacao']}"
     )
     return resultado
 

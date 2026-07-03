@@ -39,14 +39,6 @@ CAMPOS_INMET = {
     "TEM_MIN": ("Temp. Mín (°C)",     "min"),
 }
 
-# ─── Critérios de Dia Improdutivo (Fase 2) ───────────────────────────────────
-# Limite de chuva diária acumulada (em mm) para inviabilizar fachadas
-LIMITE_CHUVA_MM = 2.0
-
-# Limite de velocidade de vento (m/s) e rajada (m/s) para segurança em altura (NR-35)
-LIMITE_VENTO_MS = 10.0
-LIMITE_RAJADA_MS = 14.0
-
 # ─── Cabeçalho da aba de registros ───────────────────────────────────────────
 CABECALHO_REGISTROS = [
     "Data",
@@ -62,3 +54,46 @@ CABECALHO_REGISTROS = [
     "Classificação",
     "Observações",
 ]
+
+# ─── Períodos de trabalho (hora BRT, inclusive) ──────────────────────────────
+HORA_INICIO_MANHA     = 8    # 08h BRT (convenção de condomínio)
+HORA_FIM_MANHA        = 11   # 11h BRT → H08, H09, H10, H11 = 4 horas
+
+HORA_INICIO_ALMOCO    = 12   # 12h BRT — EXCLUÍDO da análise
+HORA_FIM_ALMOCO       = 13   # 13h BRT — EXCLUÍDO da análise
+
+HORA_INICIO_TARDE     = 14   # 14h BRT (após almoço)
+HORA_FIM_TARDE_NORMAL = 16   # 16h BRT → H14, H15, H16 = 3 horas (seg–qui)
+HORA_FIM_TARDE_SEXTA  = 15   # 15h BRT → H14, H15 = 2 horas (sex)
+
+# ─── Thresholds horários ─────────────────────────────────────────────────────
+CHUVA_HORA_ADVERSA   = 1.0   # mm/h — "chuva fraca" (WMO) → inviabiliza argamassa e pintura
+CHUVA_HORA_ATENCAO   = 0.2   # mm/h — chuvisco → superfície úmida, atenção
+RAJADA_IMPRODUTIVO   = 11.1  # m/s (40 km/h) — NR-35 Anexo I
+RAJADA_ATENCAO       = 6.9   # m/s (25 km/h) — zona de atenção em andaimes
+
+# ─── Thresholds de precipitação por período ──────────────────────────────────
+# Manhã (4h)
+CHUVA_MANHA_IMPRODUTIVO  = 8.0   # mm no período
+CHUVA_MANHA_PARCIAL      = 2.0   # mm no período
+CHUVA_MANHA_RESSALVA     = 0.5   # mm no período
+
+# Tarde normal (3h, seg–qui)
+CHUVA_TARDE_IMPRODUTIVO  = 6.0   # mm no período
+CHUVA_TARDE_PARCIAL      = 1.5   # mm no período
+CHUVA_TARDE_RESSALVA     = 0.5   # mm no período
+
+# Tarde sexta (2h)
+CHUVA_SEXTA_IMPRODUTIVO  = 4.0   # mm no período
+CHUVA_SEXTA_PARCIAL      = 1.0   # mm no período
+CHUVA_SEXTA_RESSALVA     = 0.5   # mm no período
+
+# ─── Mínimo de horas adversas para IMPRODUTIVO (≈ 60-75% do turno) ───────────
+HORAS_IMP_MANHA          = 3     # de 4 horas → 75%
+HORAS_IMP_TARDE_NORMAL   = 2     # de 3 horas → 67%
+HORAS_IMP_TARDE_SEXTA    = 2     # de 2 horas → 100%
+
+# ─── Critério combinado (chuva dirigida) ─────────────────────────────────────
+CHUVA_DIRIGIDA_MM        = 5.0   # mm no período
+CHUVA_DIRIGIDA_VENTO     = 6.9   # m/s
+

@@ -125,21 +125,21 @@ projeto 01/
 |---|---|---|---|
 | 1 | Linguagem de programação | Python 3.12 | Melhor ecossistema para o caso de uso |
 | 2 | Armazenamento dos dados | Google Sheets | Acesso online, familiar, gratuito |
-| 3 | Autenticação com Google | Service Account | Automação sem login manual |
+| 3 | Autenticação com Google | Service Account | Automação sem login manual (ou gcloud CLI local) |
 | 4 | Agendador | GitHub Actions | Gratuito, sem servidor próprio |
 | 5 | Estação meteorológica | INMET A301 (Recife) | Estação automática oficial |
-| 6 | Fonte de dados no MVP | Apenas INMET | APAC requer contato — fica para Fase 2 |
-| 7 | Critérios de classificação | Adiado para Fase 2 | Ainda sem referência normativa definida |
-| 8 | Granularidade dos dados | Diária (agregado de horários) | Relevante para registro de dia improdutivo |
+| 6 | Fonte de dados no MVP | Apenas INMET | APAC requer contato — fica para Fase 3 |
+| 7 | Critérios de classificação | Implementado na v2.1 | Baseado em NR-18, NR-35, NBR 13755 e turnos reais |
+| 8 | Granularidade dos dados | Horária por turno de trabalho | Para considerar apenas eventos adversos dentro da jornada útil |
 
 ---
 
 ## 10. Itens pendentes (a definir futuramente)
 
-- [ ] **Configuração do Google Cloud** (Pendente) — Necessário reativar/abrir a Conta de Faturamento (Billing Account) no Console do Google Cloud e criar as credenciais da Service Account.
+- [ ] **Configuração do Google Cloud** (Em andamento) — Necessário concluir a criação da Service Account (ou autenticar via gcloud CLI local) e configurar as credenciais.
 - [ ] **Rodar Setup Automático** (Pendente) — Após logar no Google Cloud e GitHub via CLI no terminal, rodar `python setup_automatico.py` para configurar tudo automaticamente.
-- [ ] **Critérios de classificação de dia improdutivo** — thresholds de precipitação (mm), velocidade de vento (m/s), duração da chuva etc.
-- [ ] **Contato com APAC** — enviar e-mail para monitoramento@apac.pe.gov.br solicitando acesso à API
+- [x] **Critérios de classificação de dia improdutivo** — Definidos thresholds de chuva (1mm/h), vento (40km/h), chuva dirigida (5mm + 25km/h) e períodos (Manhã: 8h-12h, Tarde: 14h-17h/16h).
+- [ ] **Contato com APAC** — enviar e-mail para monitoramento@apac.pe.gov.br solicitando acesso à API (Fase 3)
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
 - [ ] **Dashboard** — Google Looker Studio (Fase 4)
 - [ ] **Relatório mensal automatizado** — integrar com fluxo de emissão de relatórios (Fase 5)
@@ -150,12 +150,12 @@ projeto 01/
 
 | Fase | Descrição | Status |
 |---|---|---|
-| **MVP (Fase 1)** | Coleta INMET + registro Google Sheets + agendamento GitHub Actions | 🔨 Em desenvolvimento |
-| **Fase 2** | Critérios de classificação de dia improdutivo | ⏳ Aguardando definição |
+| **Fase 1 (MVP)** | Coleta INMET + registro Google Sheets + agendamento GitHub Actions | ✅ Implementado |
+| **Fase 2** | Critérios de classificação de dia improdutivo (turnos úteis) | ✅ Implementado |
 | **Fase 3** | Integração com APAC | ⏳ Aguardando contato com agência |
 | **Fase 4** | Dashboard Google Looker Studio | ⏳ Planejada |
 | **Fase 5** | Relatório mensal automatizado | ⏳ Planejada |
 
 ---
 
-*Última atualização: 03/07/2026 — gerado por Antigravity com base nas decisões do chat de planejamento.*
+*Última atualização: 03/07/2026 — atualizado por Antigravity após implementação dos critérios de dia improdutivo v2.1.*

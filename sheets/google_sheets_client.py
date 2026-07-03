@@ -161,10 +161,10 @@ def gravar_registro(dados_meteo: dict, obra: dict) -> bool:
         fmt(dados_meteo.get("temp_max")),
         fmt(dados_meteo.get("temp_min")),
         dados_meteo.get("fonte", "INMET"),
-        dados_meteo.get("classificacao", "PRODUTIVO"),
+        dados_meteo.get("classificacao", "PENDENTE"),
         dados_meteo.get("observacoes", ""),
     ]
 
     aba.append_row(nova_linha, value_input_option="USER_ENTERED")
-    logger.info(f"✅ Registro gravado: {data} | Obra: {obra.get('Nome da Obra')} | Chuva: {dados_meteo.get('precipitacao')}mm")
+    logger.info(f"✅ Registro gravado: {data} | Obra: {obra.get('Nome da Obra')} | Chuva: {dados_meteo.get('precipitacao')}mm | Classe: {dados_meteo.get('classificacao')}")
     return True
