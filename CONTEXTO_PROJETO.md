@@ -136,9 +136,9 @@ projeto 01/
 
 ## 10. Itens pendentes (a definir futuramente)
 
-- [ ] **Critérios de classificação de dia improdutivo** — thresholds de precipitação (mm), velocidade de vento (m/s), duração da chuva etc. Referências a consultar: NBR 6118, condições contratuais das obras fiscalizadas
-- [ ] **Conta GitHub** — confirmar se a empresa já possui conta
-- [ ] **Conta Google Cloud** — necessário para criar Service Account e habilitar API Sheets
+- [ ] **Configuração do Google Cloud** (Pendente) — Necessário reativar/abrir a Conta de Faturamento (Billing Account) no Console do Google Cloud e criar as credenciais da Service Account.
+- [ ] **Rodar Setup Automático** (Pendente) — Após logar no Google Cloud e GitHub via CLI no terminal, rodar `python setup_automatico.py` para configurar tudo automaticamente.
+- [ ] **Critérios de classificação de dia improdutivo** — thresholds de precipitação (mm), velocidade de vento (m/s), duração da chuva etc.
 - [ ] **Contato com APAC** — enviar e-mail para monitoramento@apac.pe.gov.br solicitando acesso à API
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
 - [ ] **Dashboard** — Google Looker Studio (Fase 4)
