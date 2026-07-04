@@ -18,14 +18,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from config import ESTACAO_PADRAO, TIMEZONE_BRT
-import logging
-import sys
 import argparse
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-
-from config import ESTACAO_PADRAO, TIMEZONE_BRT
-from coletor.alternativo_client import coletar_dia_anterior_alternativo as coletar_dia_anterior
+from datetime import timedelta
+from coletor.inmet_client import buscar_dados_horarios, agregar_dados_diarios
+from coletor.alternativo_client import coletar_apac_dia_anterior, coletar_noticias_dia_anterior
+from coletor.classificador import avaliar_consenso
 from sheets.google_sheets_client import ler_obras, gravar_registro
 
 # ─── Configuração de logging ──────────────────────────────────────────────────
@@ -153,7 +150,37 @@ def executar():
             logger.info(f"─── {nome_obra} (estação {estacao}) ───")
 
             if estacao not in estacoes_coletadas:
-                dados = coletar_dia_anterior(estacao, data_str=data_str)
+                registros_inmet = buscar_dados_horarios(data_str, estacao)
+                agregado_inmet, regs_inmet = agregar_dados_diarios(registros_inmet, data_str) if registros_inmet else (None, [])
+                
+                regs_apac = coletar_apac_dia_anterior(estacao, data_str)
+                noticia = coletar_noticias_dia_anterior(data_str)
+                
+                classificacao, observacoes = avaliar_consenso(regs_inmet, regs_apac, noticia, data_str)
+                
+                if agregado_inmet:
+                    dados = agregado_inmet.copy()
+                    dados["classificacao"] = classificacao
+                    dados["observacoes"] = observacoes
+                    dados["fonte"] = "INMET + APAC + Notícias"
+                else:
+                    # Fallback caso INMET falhe, poderíamos construir dados da APAC, 
+                    # mas vamos apenas assumir que não temos medições precisas para a planilha
+                    # mas preenche a classificação baseada na notícia
+                    dados = {
+                        "data": data_str,
+                        "precipitacao": 0.0,
+                        "vento_max": 0.0,
+                        "rajada_max": 0.0,
+                        "umidade_max": 0.0,
+                        "temp_max": 0.0,
+                        "temp_min": 0.0,
+                        "fonte": "Sem Dados (Apenas Notícias)",
+                        "total_horas": 0,
+                        "classificacao": classificacao,
+                        "observacoes": observacoes,
+                    }
+                
                 estacoes_coletadas[estacao] = dados
             else:
                 dados = estacoes_coletadas[estacao]

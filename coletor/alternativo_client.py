@@ -3,9 +3,6 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import random
 
-# Reutiliza a lógica de classificação e fuso horário do inmet_client
-from coletor.inmet_client import classificar_dia, BRT
-
 logger = logging.getLogger(__name__)
 
 def coletar_apac_dia_anterior(estacao: str, data_str: str) -> list[dict]:
@@ -74,50 +71,3 @@ def coletar_noticias_dia_anterior(data_str: str) -> str:
     
     return noticias.get(cenario, "Sem alertas relevantes nos portais locais.")
 
-def coletar_dia_anterior_alternativo(codigo_estacao: str, data_str: str = None) -> dict | None:
-    """
-    Ponto de entrada alternativo: Agrega dados da APAC (simulados) + Notícias Locais
-    """
-    if data_str is None:
-        hoje_brt = datetime.now(tz=BRT).date()
-        ontem_brt = hoje_brt - timedelta(days=1)
-        data_str = ontem_brt.strftime("%Y-%m-%d")
-    
-    logger.info(f"Coletando dados alternativos (APAC + Notícias) para o dia {data_str} (estação {codigo_estacao})")
-    
-    # 1. Obter dados da APAC
-    registros_horarios = coletar_apac_dia_anterior(codigo_estacao, data_str)
-    
-    # 2. Obter notícias
-    noticia_resumo = coletar_noticias_dia_anterior(data_str)
-    
-    # 3. Classificar usando a lógica v2.1
-    classificacao, obs_classificacao = classificar_dia(registros_horarios, data_str)
-    
-    # 4. Combinar observações
-    obs_final = f"{obs_classificacao} | Fontes Locais: {noticia_resumo}"
-    
-    # 5. Agregar
-    chuvas = [float(r["CHUVA"]) for r in registros_horarios if r["CHUVA"] is not None]
-    ven_vel = [float(r["VEN_VEL"]) for r in registros_horarios if r["VEN_VEL"] is not None]
-    ven_raj = [float(r["VEN_RAJ"]) for r in registros_horarios if r["VEN_RAJ"] is not None]
-    umd_max = [float(r["UMD_MAX"]) for r in registros_horarios if r["UMD_MAX"] is not None]
-    tem_max = [float(r["TEM_MAX"]) for r in registros_horarios if r["TEM_MAX"] is not None]
-    tem_min = [float(r["TEM_MIN"]) for r in registros_horarios if r["TEM_MIN"] is not None]
-    
-    resultado = {
-        "data":          data_str,
-        "precipitacao":  round(sum(chuvas), 2) if chuvas else 0.0,
-        "vento_max":     max(ven_vel) if ven_vel else None,
-        "rajada_max":    max(ven_raj) if ven_raj else None,
-        "umidade_max":   max(umd_max) if umd_max else None,
-        "temp_max":      max(tem_max) if tem_max else None,
-        "temp_min":      min(tem_min) if tem_min else None,
-        "fonte":         "APAC + Telejornais Locais",
-        "total_horas":   len(registros_horarios),
-        "classificacao": classificacao,
-        "observacoes":   obs_final,
-    }
-    
-    logger.info(f"Dados alternativos agregados: Chuva={resultado['precipitacao']}mm | Classe={resultado['classificacao']}")
-    return resultado
