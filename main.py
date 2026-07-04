@@ -18,7 +18,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from config import ESTACAO_PADRAO, TIMEZONE_BRT
-from coletor.inmet_client import coletar_dia_anterior, buscar_dados_horarios, agregar_dados_diarios
+from coletor.alternativo_client import coletar_dia_anterior_alternativo as coletar_dia_anterior
 from sheets.google_sheets_client import ler_obras, gravar_registro
 
 # ─── Configuração de logging ──────────────────────────────────────────────────
