@@ -140,6 +140,7 @@ projeto 01/
 - [x] **Inicialização da Planilha** — Planilha configurada com as abas `OBRAS` (limpa e padronizada) e `REGISTROS_METEOROLOGICOS` via scripts locais (`inicializar_planilha.py` e `limpar_planilha.py`).
 - [x] **Análise de Dados Reais de Abril/Maio 2026** — Baixada a base histórica consolidada oficial do INMET (`2026.zip`). Criado e executado o script `importar_abril_maio.py` para importar, classificar via turnos reais (v2.1) e gravar em lote todos os 61 dias reais de Abril e Maio de 2026 na planilha.
 - [x] **Ambiente de Testes Isolado (Branch Git)** — Criada a branch `test/apac-news-sources` para simular fontes alternativas (APAC + telejornais locais) de forma transparente, protegendo o código original na branch `main`.
+- [x] **Filtro de Dias Produtivos e Automação de Sábado** — Lógica em `main.py` alterada para ignorar dias classificados como `PRODUTIVO`. Limpos 50 registros produtivos anteriores da planilha. GitHub Actions alterado para executar aos sábados (`coletor_semanal.yml`), buscando a semana anterior de forma automática. Periodos personalizados via CLI/Prompt mantidos para execuções manuais.
 - [ ] **Contato com APAC** — enviar e-mail para monitoramento@apac.pe.gov.br solicitando acesso à API (Fase 3)
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
 - [ ] **Dashboard** — Google Looker Studio (Fase 4)
