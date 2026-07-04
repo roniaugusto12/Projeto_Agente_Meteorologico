@@ -74,13 +74,14 @@ def coletar_noticias_dia_anterior(data_str: str) -> str:
     
     return noticias.get(cenario, "Sem alertas relevantes nos portais locais.")
 
-def coletar_dia_anterior_alternativo(codigo_estacao: str) -> dict | None:
+def coletar_dia_anterior_alternativo(codigo_estacao: str, data_str: str = None) -> dict | None:
     """
     Ponto de entrada alternativo: Agrega dados da APAC (simulados) + Notícias Locais
     """
-    hoje_brt = datetime.now(tz=BRT).date()
-    ontem_brt = hoje_brt - timedelta(days=1)
-    data_str = ontem_brt.strftime("%Y-%m-%d")
+    if data_str is None:
+        hoje_brt = datetime.now(tz=BRT).date()
+        ontem_brt = hoje_brt - timedelta(days=1)
+        data_str = ontem_brt.strftime("%Y-%m-%d")
     
     logger.info(f"Coletando dados alternativos (APAC + Notícias) para o dia {data_str} (estação {codigo_estacao})")
     

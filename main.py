@@ -18,6 +18,13 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from config import ESTACAO_PADRAO, TIMEZONE_BRT
+import logging
+import sys
+import argparse
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from config import ESTACAO_PADRAO, TIMEZONE_BRT
 from coletor.alternativo_client import coletar_dia_anterior_alternativo as coletar_dia_anterior
 from sheets.google_sheets_client import ler_obras, gravar_registro
 
@@ -35,11 +42,78 @@ BRT = ZoneInfo(TIMEZONE_BRT)
 
 def executar():
     """Executa o ciclo completo de coleta e registro meteorológico."""
+    parser = argparse.ArgumentParser(description="Agente Meteorológico — Tecomat Engenharia")
+    parser.add_argument("--start-date", help="Data de início no formato AAAA-MM-DD")
+    parser.add_argument("--end-date", help="Data de fim no formato AAAA-MM-DD")
+    parser.add_argument("--non-interactive", action="store_true", help="Ignora prompts e usa o padrão (ontem)")
+    args = parser.parse_args()
+
+    hoje_brt = datetime.now(tz=BRT).date()
+    ontem_brt = hoje_brt - timedelta(days=1)
+    
+    datas_alvo = []
+    
+    if args.start_date:
+        try:
+            start = datetime.strptime(args.start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(args.end_date, "%Y-%m-%d").date() if args.end_date else start
+            if start > end:
+                logger.error("A data de início não pode ser posterior à data de fim.")
+                sys.exit(1)
+            curr = start
+            while curr <= end:
+                datas_alvo.append(curr.strftime("%Y-%m-%d"))
+                curr += timedelta(days=1)
+        except ValueError as e:
+            logger.error(f"Formato de data inválido. Use AAAA-MM-DD. Erro: {e}")
+            sys.exit(1)
+    elif not args.non_interactive and sys.stdin.isatty():
+        print("\n" + "=" * 60)
+        print("🌤  Agente Meteorológico — Período de Análise")
+        print("=" * 60)
+        print("1. Ontem (padrão)")
+        print("2. Últimos 7 dias (Semana anterior)")
+        print("3. Período personalizado (especificar datas)")
+        print("=" * 60)
+        try:
+            opcao = input("Opção [1-3] (padrão: 1): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            opcao = "1"
+        
+        if opcao == "2":
+            start = hoje_brt - timedelta(days=7)
+            curr = start
+            while curr <= ontem_brt:
+                datas_alvo.append(curr.strftime("%Y-%m-%d"))
+                curr += timedelta(days=1)
+        elif opcao == "3":
+            try:
+                start_str = input("Data de início (AAAA-MM-DD): ").strip()
+                end_str = input("Data de fim (AAAA-MM-DD): ").strip()
+                start = datetime.strptime(start_str, "%Y-%m-%d").date()
+                end = datetime.strptime(end_str, "%Y-%m-%d").date()
+                if start > end:
+                    print("Erro: A data de início não pode ser posterior à data de fim.")
+                    sys.exit(1)
+                curr = start
+                while curr <= end:
+                    datas_alvo.append(curr.strftime("%Y-%m-%d"))
+                    curr += timedelta(days=1)
+            except ValueError as e:
+                print(f"Erro: Formato de data inválido. Use AAAA-MM-DD. Erro: {e}")
+                sys.exit(1)
+            except (KeyboardInterrupt, EOFError):
+                sys.exit(0)
+        else:
+            datas_alvo.append(ontem_brt.strftime("%Y-%m-%d"))
+    else:
+        datas_alvo.append(ontem_brt.strftime("%Y-%m-%d"))
 
     agora = datetime.now(tz=BRT)
     logger.info("=" * 60)
     logger.info(f"🌤  Agente Meteorológico — Tecomat Engenharia")
     logger.info(f"📅  Execução em: {agora.strftime('%d/%m/%Y %H:%M:%S')} BRT")
+    logger.info(f"📅  Período selecionado: {datas_alvo[0]} até {datas_alvo[-1]} ({len(datas_alvo)} dia(s))")
     logger.info("=" * 60)
 
     # ── 1. Lê obras ativas ───────────────────────────────────────────────────
@@ -55,50 +129,49 @@ def executar():
 
     logger.info(f"📋 {len(obras)} obra(s) ativa(s) encontrada(s).")
 
-    # ── 2. Coleta dados para cada obra ────────────────────────────────────────
+    # ── 2. Coleta e Gravação em Loop para cada data ──────────────────────────
     gravados    = 0
     duplicatas  = 0
     erros       = 0
 
-    # Agrupa obras por estação para evitar chamadas duplicadas à API
-    estacoes_coletadas: dict[str, dict | None] = {}
+    for data_str in datas_alvo:
+        logger.info(f"\n📅 === Processando dia: {data_str} ===")
+        estacoes_coletadas: dict[str, dict | None] = {}
 
-    for obra in obras:
-        nome_obra = obra.get("Nome da Obra", f"ID {obra.get('ID')}")
-        estacao   = str(obra.get("Estação INMET", ESTACAO_PADRAO)).strip() or ESTACAO_PADRAO
+        for obra in obras:
+            nome_obra = obra.get("Nome da Obra", f"ID {obra.get('ID')}")
+            estacao   = str(obra.get("Estação INMET", ESTACAO_PADRAO)).strip() or ESTACAO_PADRAO
 
-        logger.info(f"─── Processando: {nome_obra} (estação {estacao}) ───")
+            logger.info(f"─── {nome_obra} (estação {estacao}) ───")
 
-        # Reaproveita coleta se a mesma estação já foi consultada
-        if estacao not in estacoes_coletadas:
-            dados = coletar_dia_anterior(estacao)
-            estacoes_coletadas[estacao] = dados
-        else:
-            dados = estacoes_coletadas[estacao]
-            if dados:
-                logger.info(f"Reutilizando dados já coletados para estação {estacao}.")
-
-        if not dados:
-            logger.error(f"Sem dados meteorológicos para {nome_obra} — estação {estacao}.")
-            erros += 1
-            continue
-
-        # ── 3. Grava na planilha ─────────────────────────────────────────────
-        try:
-            gravado = gravar_registro(dados, obra)
-            if gravado:
-                gravados += 1
+            if estacao not in estacoes_coletadas:
+                dados = coletar_dia_anterior(estacao, data_str=data_str)
+                estacoes_coletadas[estacao] = dados
             else:
-                duplicatas += 1
-        except Exception as e:
-            logger.error(f"Erro ao gravar registro de {nome_obra}: {e}")
-            erros += 1
+                dados = estacoes_coletadas[estacao]
+                if dados:
+                    logger.info(f"Reutilizando dados já coletados para estação {estacao} no dia {data_str}.")
 
-    # ── 4. Resumo final ───────────────────────────────────────────────────────
+            if not dados:
+                logger.error(f"Sem dados meteorológicos para {nome_obra} — estação {estacao} no dia {data_str}.")
+                erros += 1
+                continue
+
+            try:
+                gravado = gravar_registro(dados, obra)
+                if gravado:
+                    gravados += 1
+                else:
+                    duplicatas += 1
+            except Exception as e:
+                logger.error(f"Erro ao gravar registro de {nome_obra} no dia {data_str}: {e}")
+                erros += 1
+
+    # ── 3. Resumo final ───────────────────────────────────────────────────────
     logger.info("=" * 60)
-    logger.info(f"✅  Gravados:    {gravados}")
-    logger.info(f"⏭️   Duplicatas:  {duplicatas}")
-    logger.info(f"❌  Erros:       {erros}")
+    logger.info(f"✅  Registros Gravados: {gravados}")
+    logger.info(f"⏭️   Duplicatas:        {duplicatas}")
+    logger.info(f"❌  Erros/Falhas:      {erros}")
     logger.info("=" * 60)
 
     if erros > 0:
