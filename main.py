@@ -14,6 +14,11 @@ Agendamento: GitHub Actions — todos os dias às 06:00 BRT (09:00 UTC)
 
 import logging
 import sys
+
+# Corrige problema de exibição de emojis (UnicodeEncodeError) no terminal do Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -64,7 +69,7 @@ def executar():
         except ValueError as e:
             logger.error(f"Formato de data inválido. Use AAAA-MM-DD. Erro: {e}")
             sys.exit(1)
-    elif not args.non_interactive and sys.stdin.isatty():
+    elif not args.non_interactive:
         print("\n" + "=" * 60)
         print("🌤  Agente Meteorológico — Período de Análise")
         print("=" * 60)
@@ -164,22 +169,31 @@ def executar():
                     dados["observacoes"] = observacoes
                     dados["fonte"] = "INMET + APAC + Notícias"
                 else:
-                    # Fallback caso INMET falhe, poderíamos construir dados da APAC, 
-                    # mas vamos apenas assumir que não temos medições precisas para a planilha
-                    # mas preenche a classificação baseada na notícia
-                    dados = {
-                        "data": data_str,
-                        "precipitacao": 0.0,
-                        "vento_max": 0.0,
-                        "rajada_max": 0.0,
-                        "umidade_max": 0.0,
-                        "temp_max": 0.0,
-                        "temp_min": 0.0,
-                        "fonte": "Sem Dados (Apenas Notícias)",
-                        "total_horas": 0,
-                        "classificacao": classificacao,
-                        "observacoes": observacoes,
-                    }
+                    agregado_apac = None
+                    if regs_apac:
+                        agregado_apac_tuple = agregar_dados_diarios(regs_apac, data_str)
+                        if agregado_apac_tuple:
+                            agregado_apac = agregado_apac_tuple[0]
+                    
+                    if agregado_apac:
+                        dados = agregado_apac.copy()
+                        dados["classificacao"] = classificacao
+                        dados["observacoes"] = observacoes
+                        dados["fonte"] = "APAC (Simulada) + Notícias"
+                    else:
+                        dados = {
+                            "data": data_str,
+                            "precipitacao": 0.0,
+                            "vento_max": 0.0,
+                            "rajada_max": 0.0,
+                            "umidade_max": 0.0,
+                            "temp_max": 0.0,
+                            "temp_min": 0.0,
+                            "fonte": "Sem Dados (Apenas Notícias)",
+                            "total_horas": 0,
+                            "classificacao": classificacao,
+                            "observacoes": observacoes,
+                        }
                 
                 estacoes_coletadas[estacao] = dados
             else:

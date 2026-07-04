@@ -141,7 +141,7 @@ projeto 01/
 - [x] **Análise de Dados Reais de Abril/Maio 2026** — Baixada a base histórica consolidada oficial do INMET (`2026.zip`). Criado e executado o script `importar_abril_maio.py` para importar, classificar via turnos reais (v2.1) e gravar em lote todos os 61 dias reais de Abril e Maio de 2026 na planilha.
 - [x] **Ambiente de Testes Isolado (Branch Git)** — Criada a branch `test/apac-news-sources` para simular fontes alternativas (APAC + telejornais locais) de forma transparente, protegendo o código original na branch `main`.
 - [x] **Filtro de Dias Produtivos e Automação de Sábado** — Lógica em `main.py` alterada para ignorar dias classificados como `PRODUTIVO`. Limpos 50 registros produtivos anteriores da planilha. GitHub Actions alterado para executar aos sábados (`coletor_semanal.yml`), buscando a semana anterior de forma automática. Periodos personalizados via CLI/Prompt mantidos para execuções manuais.
-- [x] **Motor de Consenso (Fase 3)** — Arquitetura de 3 pilares implementada. `classificador.py` cruza dados brutos numéricos do INMET e APAC, usando o pior caso como regra. Além disso, rebaixa para `RESSALVA` dias produtivos que contenham alertas críticos nos portais de notícias locais (ex: alagamentos, temporal).
+- [x] **Motor de Consenso (Fase 3)** — Arquitetura de 3 pilares implementada. `classificador.py` cruza dados brutos numéricos do INMET e APAC, usando o pior caso como regra. Além disso, rebaixa para `RESSALVA` dias produtivos que contenham alertas críticos nos portais de notícias locais (restrito a: alagamentos, temporal, enchente, etc.). Implementado fallback robusto para falhas prolongadas da API do INMET usando dados secundários, regras lógicas para ignorar sábados, domingos e feriados estaduais/nacionais usando a biblioteca `holidays`.
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
 - [ ] **Dashboard** — Google Looker Studio (Fase 4)
 - [ ] **Relatório mensal automatizado** — integrar com fluxo de emissão de relatórios (Fase 5)
@@ -160,4 +160,4 @@ projeto 01/
 
 ---
 
-*Última atualização: 03/07/2026 — atualizado por Antigravity. Implementado o Motor de Consenso (Fase 3) com triangulação entre INMET, APAC e Notícias Locais.*
+*Última atualização: 03/07/2026 — atualizado por Antigravity. Implementado o Motor de Consenso (Fase 3) com triangulação INMET/APAC/Notícias, correção de fallback, regras de finais de semana e feriados.*

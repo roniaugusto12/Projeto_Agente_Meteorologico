@@ -5,6 +5,7 @@ Avalia dados do INMET, APAC e Notícias Locais para definir a produtividade.
 
 import logging
 from datetime import datetime
+import holidays
 from config import (
     HORA_INICIO_MANHA, HORA_FIM_MANHA, HORA_INICIO_TARDE,
     HORA_FIM_TARDE_NORMAL, HORA_FIM_TARDE_SEXTA,
@@ -132,7 +133,10 @@ def classificar_noticias(noticia: str) -> bool:
     """Verifica se há palavras-chave de risco na notícia."""
     if not noticia:
         return False
-    palavras_chave = ["alagamento", "temporal", "queda de árvore", "deslizamento", "enchente", "alerta"]
+    palavras_chave = [
+        "alagamento", "temporal", "queda de árvore", "deslizamento", 
+        "enchente", "alerta", "chuva"
+    ]
     noticia_lower = noticia.lower()
     for p in palavras_chave:
         if p in noticia_lower:
@@ -144,7 +148,24 @@ def avaliar_consenso(registros_inmet: list[dict], registros_apac: list[dict], no
     Avalia INMET e APAC. O pior caso prevalece.
     Se a base (INMET/APAC) der PRODUTIVO, mas houver palavra-chave na notícia,
     rebaixa para RESSALVA, mantendo os dados técnicos.
+    Feriados e finais de semana são filtrados imediatamente.
     """
+    try:
+        dt = datetime.strptime(data_referencia, "%Y-%m-%d")
+        
+        # 1. Checagem de Final de Semana
+        if dt.weekday() >= 5: # 5 = Sábado, 6 = Domingo
+            return "FINAL DE SEMANA", "Sem expediente"
+        
+        # 2. Checagem de Feriado (Nacional e PE)
+        br_holidays = holidays.BR(state='PE')
+        if dt.date() in br_holidays:
+            nome_feriado = br_holidays.get(dt.date())
+            return "FERIADO", f"{nome_feriado}"
+    except Exception as e:
+        logger.error(f"Erro ao avaliar feriado/fim de semana: {e}")
+        pass
+    
     class_inmet, obs_inmet = classificar_fonte(registros_inmet, data_referencia)
     class_apac, obs_apac = classificar_fonte(registros_apac, data_referencia)
     tem_risco_noticia = classificar_noticias(noticia)
