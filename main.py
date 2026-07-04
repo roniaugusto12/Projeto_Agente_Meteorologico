@@ -107,7 +107,15 @@ def executar():
         else:
             datas_alvo.append(ontem_brt.strftime("%Y-%m-%d"))
     else:
-        datas_alvo.append(ontem_brt.strftime("%Y-%m-%d"))
+        if hoje_brt.weekday() == 5:  # 5 represents Saturday in Python's weekday (0=Monday)
+            logger.info("Execução automática de sábado detectada. Analisando a semana anterior (últimos 7 dias).")
+            start = hoje_brt - timedelta(days=7)
+            curr = start
+            while curr <= ontem_brt:
+                datas_alvo.append(curr.strftime("%Y-%m-%d"))
+                curr += timedelta(days=1)
+        else:
+            datas_alvo.append(ontem_brt.strftime("%Y-%m-%d"))
 
     agora = datetime.now(tz=BRT)
     logger.info("=" * 60)
@@ -155,6 +163,11 @@ def executar():
             if not dados:
                 logger.error(f"Sem dados meteorológicos para {nome_obra} — estação {estacao} no dia {data_str}.")
                 erros += 1
+                continue
+
+            # Filtra e ignora registros classificados como PRODUTIVO
+            if dados.get("classificacao") == "PRODUTIVO":
+                logger.info(f"Skip: Dia {data_str} classificado como PRODUTIVO. Não gravado conforme preferências.")
                 continue
 
             try:

@@ -1,9 +1,9 @@
-name: Coletor Meteorológico Diário
+name: Coletor Meteorológico Semanal
 
 on:
-  # Executa todos os dias às 09:00 UTC = 06:00 BRT
+  # Executa todos os sábados às 09:00 UTC = 06:00 BRT
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "0 9 * * 6"
 
   # Permite executar manualmente pelo GitHub Actions
   workflow_dispatch:
