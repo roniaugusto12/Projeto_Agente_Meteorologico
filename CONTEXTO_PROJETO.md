@@ -142,6 +142,7 @@ projeto 01/
 - [x] **Ambiente de Testes Isolado (Branch Git)** — Criada a branch `test/apac-news-sources` para simular fontes alternativas (APAC + telejornais locais) de forma transparente, protegendo o código original na branch `main`.
 - [x] **Filtro de Dias Produtivos e Automação de Sábado** — Lógica em `main.py` alterada para ignorar dias classificados como `PRODUTIVO`. Limpos 50 registros produtivos anteriores da planilha. GitHub Actions alterado para executar aos sábados (`coletor_semanal.yml`), buscando a semana anterior de forma automática. Periodos personalizados via CLI/Prompt mantidos para execuções manuais.
 - [x] **Motor de Consenso (Fase 3)** — Arquitetura de 3 pilares implementada. `classificador.py` cruza dados brutos numéricos do INMET e APAC, usando o pior caso como regra. Além disso, rebaixa para `RESSALVA` dias produtivos que contenham alertas críticos nos portais de notícias locais (restrito a: alagamentos, temporal, enchente, etc.). Implementado fallback robusto para falhas prolongadas da API do INMET usando dados secundários, regras lógicas para ignorar sábados, domingos e feriados estaduais/nacionais usando a biblioteca `holidays`.
+- [x] **Importação Real de Junho de 2026 e Otimizações de Rate Limit** — Adicionado fallback transparente em `inmet_client.py` para ler dados reais do arquivo histórico local (`2026.zip`) quando a data solicitada não estiver disponível na API online. Refatorado o loop em `main.py` para usar um cache local de duplicatas e gravar no Sheets de uma só vez em lote (`append_rows`), resolvendo de forma definitiva o limite de requisições da API do Google (HTTP 429). Processado o período de 01/06/2026 a 30/06/2026 com sucesso.
 - [ ] **Cadastro das obras ativas** — levantar endereços e coordenadas GPS das obras em andamento
 - [ ] **Dashboard** — Google Looker Studio (Fase 4)
 - [ ] **Relatório mensal automatizado** — integrar com fluxo de emissão de relatórios (Fase 5)
@@ -160,4 +161,4 @@ projeto 01/
 
 ---
 
-*Última atualização: 03/07/2026 — atualizado por Antigravity. Implementado o Motor de Consenso (Fase 3) com triangulação INMET/APAC/Notícias, correção de fallback, regras de finais de semana e feriados.*
+*Última atualização: 07/07/2026 — atualizado por Antigravity. Implementado fallback transparente para dados do ZIP em `inmet_client.py`, otimizações de gravação em lote contra erros de cota (HTTP 429) no Sheets e importação do período completo de Junho de 2026.*
