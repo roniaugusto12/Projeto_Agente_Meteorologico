@@ -13,6 +13,10 @@ import requests
 import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import os
+import zipfile
+import csv
+import io
 
 from config import (
     INMET_API_BASE,
@@ -78,6 +82,56 @@ def obter_hora_brt(registro: dict) -> int | None:
         return None
 
 
+def buscar_dados_horarios_zip(data: str, codigo_estacao: str) -> list[dict]:
+    """Busca dados horários do arquivo histórico ZIP local."""
+    zip_path = "2026.zip"
+    if not os.path.exists(zip_path):
+        return []
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            nome_arquivo_csv = None
+            for name in zip_ref.namelist():
+                if codigo_estacao in name:
+                    nome_arquivo_csv = name
+                    break
+            if not nome_arquivo_csv:
+                return []
+            with zip_ref.open(nome_arquivo_csv) as f:
+                text_stream = io.TextIOWrapper(f, encoding='iso-8859-1')
+                reader = csv.reader(text_stream, delimiter=';')
+                for _ in range(8):
+                    next(reader)
+                headers = next(reader)
+                registros = []
+                for row in reader:
+                    if not row or len(row) < 19:
+                        continue
+                    row_date = row[0].replace("/", "-")
+                    if row_date == data:
+                        def format_csv_val(v):
+                            v = v.strip()
+                            if not v or v == "null" or v == "-9999":
+                                return None
+                            return v.replace(",", ".")
+                        hr_utc = row[1].split()[0]
+                        registros.append({
+                            "DT_MEDIDA": row_date,
+                            "HR_MEDIDA": hr_utc,
+                            "CHUVA": format_csv_val(row[2]),
+                            "VEN_VEL": format_csv_val(row[18]),
+                            "VEN_RAJ": format_csv_val(row[17]),
+                            "UMD_MAX": format_csv_val(row[13]),
+                            "TEM_MAX": format_csv_val(row[9]),
+                            "TEM_MIN": format_csv_val(row[10]),
+                        })
+                if registros:
+                    logger.info(f"Carregados {len(registros)} registros reais do ZIP para {data} / {codigo_estacao}")
+                    return registros
+    except Exception as e:
+        logger.error(f"Erro ao ler ZIP para {data} / {codigo_estacao}: {e}")
+    return []
+
+
 def buscar_dados_horarios(data: str, codigo_estacao: str = ESTACAO_PADRAO) -> list[dict]:
     """
     Busca os dados horários de uma estação INMET para uma data específica.
@@ -90,6 +144,11 @@ def buscar_dados_horarios(data: str, codigo_estacao: str = ESTACAO_PADRAO) -> li
         Lista de dicionários com os dados horários brutos da API.
         Retorna lista vazia em caso de erro.
     """
+    if os.path.exists("2026.zip"):
+        dados_zip = buscar_dados_horarios_zip(data, codigo_estacao)
+        if dados_zip:
+            return dados_zip
+
     # A API recebe datas no formato YYYY-MM-DD
     url = f"{INMET_API_BASE}/estacao/{data}/{data}/{codigo_estacao}"
     logger.info(f"Consultando INMET: {url}")

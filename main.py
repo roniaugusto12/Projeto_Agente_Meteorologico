@@ -14,6 +14,11 @@ Agendamento: GitHub Actions — todos os dias às 06:00 BRT (09:00 UTC)
 
 import logging
 import sys
+
+# Corrige problema de exibição de emojis (UnicodeEncodeError) no terminal do Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -64,7 +69,7 @@ def executar():
         except ValueError as e:
             logger.error(f"Formato de data inválido. Use AAAA-MM-DD. Erro: {e}")
             sys.exit(1)
-    elif not args.non_interactive and sys.stdin.isatty():
+    elif not args.non_interactive:
         print("\n" + "=" * 60)
         print("🌤  Agente Meteorológico — Período de Análise")
         print("=" * 60)
@@ -135,6 +140,24 @@ def executar():
     logger.info(f"📋 {len(obras)} obra(s) ativa(s) encontrada(s).")
 
     # ── 2. Coleta e Gravação em Loop para cada data ──────────────────────────
+    linhas_a_gravar = []
+    
+    try:
+        from sheets.google_sheets_client import _abrir_planilha, ABA_REGISTROS, _garantir_cabecalho
+        planilha = _abrir_planilha()
+        aba = planilha.worksheet(ABA_REGISTROS)
+        _garantir_cabecalho(aba)
+        todos_existentes = aba.get_all_values()
+        
+        chaves_existentes = set()
+        if len(todos_existentes) > 1:
+            for linha in todos_existentes[1:]:
+                if len(linha) >= 2:
+                    chaves_existentes.add((linha[0], str(linha[1])))
+    except Exception as e:
+        logger.error(f"Falha ao conectar e ler registros existentes da planilha: {e}")
+        sys.exit(1)
+
     gravados    = 0
     duplicatas  = 0
     erros       = 0
@@ -146,6 +169,7 @@ def executar():
         for obra in obras:
             nome_obra = obra.get("Nome da Obra", f"ID {obra.get('ID')}")
             estacao   = str(obra.get("Estação INMET", ESTACAO_PADRAO)).strip() or ESTACAO_PADRAO
+            id_obra   = str(obra.get("ID", ""))
 
             logger.info(f"─── {nome_obra} (estação {estacao}) ───")
 
@@ -164,22 +188,31 @@ def executar():
                     dados["observacoes"] = observacoes
                     dados["fonte"] = "INMET + APAC + Notícias"
                 else:
-                    # Fallback caso INMET falhe, poderíamos construir dados da APAC, 
-                    # mas vamos apenas assumir que não temos medições precisas para a planilha
-                    # mas preenche a classificação baseada na notícia
-                    dados = {
-                        "data": data_str,
-                        "precipitacao": 0.0,
-                        "vento_max": 0.0,
-                        "rajada_max": 0.0,
-                        "umidade_max": 0.0,
-                        "temp_max": 0.0,
-                        "temp_min": 0.0,
-                        "fonte": "Sem Dados (Apenas Notícias)",
-                        "total_horas": 0,
-                        "classificacao": classificacao,
-                        "observacoes": observacoes,
-                    }
+                    agregado_apac = None
+                    if regs_apac:
+                        agregado_apac_tuple = agregar_dados_diarios(regs_apac, data_str)
+                        if agregado_apac_tuple:
+                            agregado_apac = agregado_apac_tuple[0]
+                    
+                    if agregado_apac:
+                        dados = agregado_apac.copy()
+                        dados["classificacao"] = classificacao
+                        dados["observacoes"] = observacoes
+                        dados["fonte"] = "APAC (Simulada) + Notícias"
+                    else:
+                        dados = {
+                            "data": data_str,
+                            "precipitacao": 0.0,
+                            "vento_max": 0.0,
+                            "rajada_max": 0.0,
+                            "umidade_max": 0.0,
+                            "temp_max": 0.0,
+                            "temp_min": 0.0,
+                            "fonte": "Sem Dados (Apenas Notícias)",
+                            "total_horas": 0,
+                            "classificacao": classificacao,
+                            "observacoes": observacoes,
+                        }
                 
                 estacoes_coletadas[estacao] = dados
             else:
@@ -197,17 +230,48 @@ def executar():
                 logger.info(f"Skip: Dia {data_str} classificado como PRODUTIVO. Não gravado conforme preferências.")
                 continue
 
-            try:
-                gravado = gravar_registro(dados, obra)
-                if gravado:
-                    gravados += 1
-                else:
-                    duplicatas += 1
-            except Exception as e:
-                logger.error(f"Erro ao gravar registro de {nome_obra} no dia {data_str}: {e}")
-                erros += 1
+            chave = (data_str, id_obra)
+            if chave in chaves_existentes:
+                logger.info(f"Registro já existe para {data_str} / Obra {id_obra} — ignorando.")
+                duplicatas += 1
+                continue
 
-    # ── 3. Resumo final ───────────────────────────────────────────────────────
+            def fmt(valor):
+                return str(valor).replace(".", ",") if valor is not None else ""
+
+            nova_linha = [
+                data_str,
+                id_obra,
+                obra.get("Nome da Obra", ""),
+                fmt(dados.get("precipitacao")),
+                fmt(dados.get("vento_max")),
+                fmt(dados.get("rajada_max")),
+                fmt(dados.get("umidade_max")),
+                fmt(dados.get("temp_max")),
+                fmt(dados.get("temp_min")),
+                dados.get("fonte", "INMET"),
+                dados.get("classificacao", "PENDENTE"),
+                dados.get("observacoes", ""),
+            ]
+            linhas_a_gravar.append((nova_linha, nome_obra, data_str))
+            chaves_existentes.add(chave)
+
+    # ── 3. Gravação em Lote no Sheets ────────────────────────────────────────
+    if linhas_a_gravar:
+        logger.info(f"\n✍️  Gravando {len(linhas_a_gravar)} registros no Google Sheets em lote...")
+        try:
+            valores_lote = [item[0] for item in linhas_a_gravar]
+            aba.append_rows(valores_lote, value_input_option="USER_ENTERED")
+            for item in linhas_a_gravar:
+                logger.info(f"✅ Registro gravado: {item[2]} | Obra: {item[1]}")
+            gravados = len(linhas_a_gravar)
+        except Exception as e:
+            logger.error(f"Erro ao gravar os registros em lote no Google Sheets: {e}")
+            erros += len(linhas_a_gravar)
+    else:
+        logger.info("\n⏭️  Nenhum novo registro a gravar no Google Sheets.")
+
+    # ── 4. Resumo final ───────────────────────────────────────────────────────
     logger.info("=" * 60)
     logger.info(f"✅  Registros Gravados: {gravados}")
     logger.info(f"⏭️   Duplicatas:        {duplicatas}")
